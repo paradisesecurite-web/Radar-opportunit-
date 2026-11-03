@@ -1,0 +1,96 @@
+# Lancement automatique du Radar alternance IT (gratuit avec GitHub Actions).
+#
+# - Toutes les heures du lundi au samedi : nouvelles offres + alertes 🔥,
+#   et récap du matin au premier passage à partir de 8h (heure de Paris).
+#   Les horaires GitHub sont en heure UTC : on lance un peu large et le
+#   programme ignore les passages hors de 7h-20h heure de Paris
+#   (gère automatiquement l'heure d'été / d'hiver).
+# - Le 2 de chaque mois : rafraîchissement de la base à froid (module B).
+# - Bouton "Run workflow" : tests manuels (voir docs/GUIDE.md).
+name: Radar alternance IT
+
+on:
+  schedule:
+    - cron: "7 5-19 * * 1-6"    # chaque heure à hh:07 UTC, lundi-samedi
+    - cron: "23 1 2 * *"        # le 2 du mois à 1h23 UTC : module B
+  workflow_dispatch:
+    inputs:
+      commande:
+        description: "Que faire ?"
+        type: choice
+        default: test-offres
+        options:
+          - test-offres        # cherche les offres et envoie tout de suite un mail
+          - test-froid         # module B sur une seule ville + mail d'appels à froid
+          - rafraichir-froid   # module B complet (toutes les villes, ~30-60 min)
+          - recap              # envoie le récap du matin maintenant
+          - heure              # passage horaire forcé (ignore les horaires)
+      ville:
+        description: "Ville (pour test-froid / rafraichir-froid ; vide = toutes)"
+        type: string
+        default: "Lyon"
+
+# Un seul lancement à la fois : la base locale ne doit pas être écrite en double.
+concurrency:
+  group: radar
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  radar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - run: pip install -r requirements.txt
+
+      # La base locale (SQLite) est gardée dans le cache GitHub, jamais dans le code.
+      - name: Récupérer la base
+        uses: actions/cache/restore@v4
+        with:
+          path: data
+          key: radar-db-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: radar-db-
+
+      - name: Lancer le radar
+        env:
+          LBA_API_TOKEN: ${{ secrets.LBA_API_TOKEN }}
+          GMAIL_ADRESSE: ${{ secrets.GMAIL_ADRESSE }}
+          GMAIL_MOT_DE_PASSE: ${{ secrets.GMAIL_MOT_DE_PASSE }}
+          DESTINATAIRES: ${{ secrets.DESTINATAIRES }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
+          EVENEMENT: ${{ github.event_name }}
+          PLANNING: ${{ github.event.schedule }}
+          COMMANDE: ${{ inputs.commande }}
+          VILLE: ${{ inputs.ville }}
+        run: |
+          if [ "$EVENEMENT" = "schedule" ]; then
+            if [ "$PLANNING" = "23 1 2 * *" ]; then
+              python -m radar rafraichir-froid
+            else
+              python -m radar heure
+            fi
+          else
+            case "$COMMANDE" in
+              heure)            python -m radar heure --force ;;
+              test-froid)       python -m radar test-froid --ville "${VILLE:-Lyon}" ;;
+              rafraichir-froid) if [ -n "$VILLE" ]; then python -m radar rafraichir-froid --ville "$VILLE"; else python -m radar rafraichir-froid; fi ;;
+              *)                python -m radar "$COMMANDE" ;;
+            esac
+          fi
+
+      - name: Sauvegarder la base
+        if: always() && hashFiles('data/radar.db') != ''
+        uses: actions/cache/save@v4
+        with:
+          path: data
+          key: radar-db-${{ github.run_id }}-${{ github.run_attempt }}

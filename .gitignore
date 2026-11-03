@@ -1,0 +1,8 @@
+# Données locales : contiennent des noms et numéros, ne JAMAIS les committer
+data/
+*.db
+apercu_*.html
+__pycache__/
+.venv/
+.env
+.pytest_cache/

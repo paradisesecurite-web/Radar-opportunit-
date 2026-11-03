@@ -1,0 +1,148 @@
+# ============================================================
+#  RADAR ALTERNANCE IT – FICHIER DE RÉGLAGES UNIQUE
+#  Tout ce qui se règle se règle ici. Aucune clé secrète dans ce fichier :
+#  les clés et mots de passe sont dans les "Secrets" GitHub (voir docs/GUIDE.md).
+# ============================================================
+
+# ---------- Horaires (heure de Paris) ----------
+horaires:
+  heure_debut: 7          # première vérification des offres
+  heure_fin: 20           # dernière vérification des offres
+  jours: [0, 1, 2, 3, 4, 5]   # 0 = lundi ... 5 = samedi (6 = dimanche)
+  heure_recap: 8          # mail récapitulatif du matin
+
+# ---------- Mails ----------
+mails:
+  seuil_alerte: 8               # note à partir de laquelle on envoie un mail immédiat 🔥
+  seuil_recap_offres: 5         # note minimum pour apparaître dans le récap du matin
+  nb_appels_a_froid: 40         # taille de la "Liste d'appels à froid" du récap
+  max_alertes_par_heure: 10     # au-delà, les alertes sont regroupées dans un seul mail
+  max_offres_dans_recap: 80     # au-delà, le mail renvoie vers le Google Sheet (tout y est)
+
+# ---------- MODULE A : offres en temps réel ----------
+module_a:
+  # Codes métiers ROME de l'informatique (La bonne alternance cherche par code ROME).
+  codes_rome:
+    - M1801   # Administration de systèmes d'information (TSSR, ASR)
+    - M1802   # Expertise et support en systèmes d'information
+    - M1803   # Direction des systèmes d'information
+    - M1804   # Études et développement de réseaux de télécoms
+    - M1805   # Études et développement informatique (dev, full stack, data)
+    - M1806   # Conseil et maîtrise d'ouvrage en SI
+    - M1810   # Production et exploitation de SI
+    - M1811   # Data engineer (ROME 4.0)
+    - M1812   # Responsable de la sécurité des SI (ROME 4.0)
+    - M1813   # Intégrateur de logiciels métiers (ROME 4.0)
+  # Si l'API refuse un code (code inconnu), l'outil réessaie avec cette liste sûre :
+  codes_rome_surs: [M1801, M1802, M1803, M1804, M1805, M1806, M1810]
+  # Niveaux de diplôme visés (nomenclature européenne) : 3 = CAP, 4 = Bac,
+  # 5 = Bac+2, 6 = Bac+3/4, 7 = Bac+5. L'école forme de Bac+2 à Bac+5.
+  niveaux_exclus: ["3", "4"]
+  # Âge maximum d'une offre pour être gardée (jours)
+  age_max_offre_jours: 45
+
+# ---------- MODULE B : prospection à froid ----------
+module_b:
+  # Mettre toute_la_france: true pour ignorer la liste de villes (beaucoup plus long).
+  toute_la_france: false
+  # Les 10 plus grandes villes et leur métropole.
+  # epci = numéro SIREN de la métropole (annuaire des entreprises).
+  # lat/lon = centre-ville, pour croiser avec La bonne alternance.
+  villes:
+    Paris:       {epci: "200054781", lat: 48.8566, lon: 2.3522}
+    Marseille:   {epci: "200054807", lat: 43.2965, lon: 5.3698}
+    Lyon:        {epci: "200046977", lat: 45.7640, lon: 4.8357}
+    Toulouse:    {epci: "243100518", lat: 43.6047, lon: 1.4442}
+    Nice:        {epci: "200030195", lat: 43.7102, lon: 7.2620}
+    Nantes:      {epci: "244400404", lat: 47.2184, lon: -1.5536}
+    Montpellier: {epci: "243400017", lat: 43.6108, lon: 3.8767}
+    Strasbourg:  {epci: "246700488", lat: 48.5734, lon: 7.7521}
+    Bordeaux:    {epci: "243300316", lat: 44.8378, lon: -0.5792}
+    Lille:       {epci: "200093201", lat: 50.6292, lon: 3.0573}
+  rayon_lba_km: 30
+
+  # Entreprises du numérique : toutes tailles (avec au moins 1 salarié).
+  naf_numerique:
+    "58.21Z": "Édition de jeux électroniques"
+    "58.29A": "Édition de logiciels système et de réseau"
+    "58.29B": "Édition de logiciels outils de développement"
+    "58.29C": "Édition de logiciels applicatifs"
+    "62.01Z": "Programmation informatique"
+    "62.02A": "Conseil en systèmes et logiciels (ESN)"
+    "62.02B": "Tierce maintenance informatique"
+    "62.03Z": "Gestion d'installations informatiques (infogérance)"
+    "62.09Z": "Autres activités informatiques"
+    "63.11Z": "Hébergement et traitement de données"
+    "63.12Z": "Portails Internet"
+    "61.10Z": "Télécoms filaires"
+    "61.20Z": "Télécoms sans fil"
+    "61.30Z": "Télécoms par satellite"
+    "61.90Z": "Autres télécoms"
+    "73.11Z": "Agences de publicité / web et digital"
+  # Entreprises hors numérique avec un service informatique : à partir d'une
+  # certaine taille seulement (voir effectif_min_hors_numerique).
+  naf_hors_numerique:
+    "64.19Z": "Banque"
+    "64.20Z": "Sociétés holding (groupes)"
+    "65.11Z": "Assurance vie"
+    "65.12Z": "Autres assurances"
+    "66.22Z": "Courtage d'assurance"
+    "86.10Z": "Hôpitaux et cliniques"
+    "52.10B": "Entreposage (logistique)"
+    "52.29A": "Messagerie, fret express"
+    "52.29B": "Affrètement, organisation des transports"
+    "49.41A": "Transport routier de fret"
+    "47.11F": "Hypermarchés"
+    "47.11D": "Supermarchés"
+    "47.91B": "Vente à distance (e-commerce)"
+    "84.11Z": "Administration publique générale (collectivités)"
+    "84.12Z": "Administration publique (santé, éducation…)"
+    "35.11Z": "Production d'électricité"
+    "30.30Z": "Construction aéronautique et spatiale"
+    "29.10Z": "Construction automobile"
+    "21.20Z": "Industrie pharmaceutique"
+    "26.20Z": "Fabrication d'ordinateurs"
+    "71.12B": "Ingénierie, études techniques"
+  # Codes INSEE de tranche d'effectif : 01 = 1-2 sal., 03 = 6-9, 11 = 10-19,
+  # 12 = 20-49, 21 = 50-99, 22 = 100-199, 31 = 200-249 ... 53 = 10 000+
+  effectif_min_numerique: "01"
+  effectif_min_hors_numerique: "21"
+
+# ---------- LA NOTE DE 1 À 10 ----------
+# Chaque critère reçoit une sous-note de 0 à 10, puis on fait une moyenne
+# pondérée. Changer un poids change l'importance du critère.
+note:
+  poids:
+    besoin: 6       # réalité du besoin (le plus important)
+    contact: 1.5    # qualité du contact (faible : Aurélien complète avec Lusha)
+    taille: 1.5     # rapidité de décision selon la taille
+    bonus: 1        # signaux positifs en plus
+  besoin:
+    offre_moins_48h: 10
+    offre_moins_7j: 8
+    offre_moins_30j: 6
+    offre_ancienne: 4
+    susceptible_lba: 5      # "susceptible de recruter" selon La bonne alternance
+    profil_seul: 2          # entreprise IT sans signal
+  contact:
+    decideur_mobile: 10     # décideur nommé + numéro mobile
+    nom_et_numero: 7        # nom + numéro (standard)
+    nom_seul: 5
+    numero_seul: 4
+    rien: 1
+  taille:                   # par nombre de salariés
+    moins_20: 10
+    de_20_a_249: 9
+    de_250_a_1999: 6
+    plus_2000: 4
+    inconnue: 7
+  bonus:                    # points additionnés, plafonnés à 10
+    plusieurs_postes: 4     # plusieurs postes ouverts / plusieurs offres
+    entreprise_jeune: 3     # créée il y a moins de 5 ans
+    chiffre_affaires_en_hausse: 3
+    entreprise_numerique: 2
+    gros_service_info: 2    # grande entreprise hors numérique (gros service IT)
+
+# ---------- Fiabilité ----------
+pause_entre_appels_lba_s: 1.1        # La bonne alternance : 60 appels / minute max
+pause_entre_appels_annuaire_s: 0.2   # Annuaire : 7 appels / seconde max
