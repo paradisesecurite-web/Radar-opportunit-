@@ -26,14 +26,13 @@ deviennent privés aussi).
 Un dépôt privé dispose de 2 000 minutes gratuites par mois de lancements
 automatiques ; l'outil en utilise environ 800 à 1 300 (voir `docs/COUTS.md`).
 
-## Étape 1 – Mettre le code sur la branche principale
+## Étape 1 – Vérifier la branche principale
 
 Les lancements automatiques de GitHub ne tournent que sur la branche
-principale (`main`).
-
-1. Sur la page du dépôt, GitHub propose « Compare & pull request » pour la
-   branche du code. Cliquez dessus, puis **Create pull request**,
-   puis **Merge pull request**.
+principale du dépôt. Aujourd'hui le code est sur l'unique branche, qui est
+déjà la branche principale : **rien à faire**. Si vous créez plus tard une
+branche `main`, pensez à y fusionner le code (bouton « Compare & pull
+request » → « Merge pull request »).
 
 ## Étape 2 – La clé La bonne alternance (gratuite)
 
