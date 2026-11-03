@@ -45,6 +45,28 @@ def fiche(siren: str, pause: float = 0.2) -> dict | None:
     return None
 
 
+def chercher_par_nom(nom: str, ville: str | None, pause: float = 0.2) -> dict | None:
+    """Retrouve une entreprise par son nom (et sa ville si connue). None si doute."""
+    from .commun import normaliser
+    cible = normaliser(nom)
+    if len(cible) < 3:
+        return None
+    rep = _appeler({"q": nom, "etat_administratif": "A", "minimal": "true", "include": INCLURE,
+                    "per_page": 5}, pause)
+    v = normaliser(ville).split(" ")[0] if ville else ""
+    for res in rep.get("results", []):
+        noms = {normaliser(res.get("nom_complet")), normaliser(res.get("nom_raison_sociale")),
+                normaliser((res.get("siege") or {}).get("nom_commercial"))}
+        if not any(n and (n == cible or n.startswith(cible + " ") or cible.startswith(n + " ")) for n in noms):
+            continue
+        communes = [normaliser((res.get("siege") or {}).get("libelle_commune"))] + \
+                   [normaliser(e.get("libelle_commune")) for e in res.get("matching_etablissements") or []]
+        if v and not any(c.startswith(v) for c in communes if c):
+            continue
+        return res
+    return None
+
+
 def lister(pause: float, naf: str, tranches: list[str], epci: str | None = None,
            departement: str | None = None):
     """Toutes les entreprises actives d'un code NAF dans une métropole (ou un département).

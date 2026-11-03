@@ -9,13 +9,16 @@ horaires:
   heure_debut: 7          # première vérification des offres
   heure_fin: 20           # dernière vérification des offres
   jours: [0, 1, 2, 3, 4, 5]   # 0 = lundi ... 5 = samedi (6 = dimanche)
-  heure_recap: 8          # mail récapitulatif du matin
+  # Mails récapitulatifs (heure de Paris). "avec_froid" = ajoute la liste d'appels à froid.
+  recaps:
+    - {heure: "08:00", nom: "Récap", avec_froid: true}
+    - {heure: "13:30", nom: "Récap de 13h30", avec_froid: false}
 
 # ---------- Mails ----------
 mails:
   seuil_alerte: 8               # note à partir de laquelle on envoie un mail immédiat 🔥
   seuil_recap_offres: 5         # note minimum pour apparaître dans le récap du matin
-  nb_appels_a_froid: 40         # taille de la "Liste d'appels à froid" du récap
+  nb_appels_a_froid: 20         # taille de la "Liste d'appels à froid" du récap du matin
   max_alertes_par_heure: 10     # au-delà, les alertes sont regroupées dans un seul mail
   max_offres_dans_recap: 80     # au-delà, le mail renvoie vers le Google Sheet (tout y est)
 
@@ -40,12 +43,43 @@ module_a:
   niveaux_exclus: ["3", "4"]
   # Âge maximum d'une offre pour être gardée (jours)
   age_max_offre_jours: 45
+  # Entreprises à ne jamais afficher (ex. sa propre école)
+  exclure_entreprises: ["iscod"]
+  # Mots qui signalent une offre publiée par une école ou un CFA pour une
+  # entreprise partenaire -> marquée "via une autre école"
+  mots_ecoles: ["école", "ecole", "cfa", "campus", "academy", "institut", "openclassrooms",
+                "studi", "ifocop", "simplon", "wild code", "o'clock", "3w academy", "digital school",
+                "iscod", "enaco", "formation"]
+  # Une offre Adzuna / Jooble n'est gardée que si son intitulé contient un de ces mots
+  mots_cles_it: ["développeur", "developpeur", "développement", "developpement", "informatique",
+                 "réseau", "reseau", "système", "systeme", "systèmes", "cyber", "sécurité",
+                 "data", "devops", "cloud", "support", "technicien", "administrateur", "web",
+                 "full stack", "fullstack", "front", "back", "logiciel", "ia ", "intelligence artificielle",
+                 "no-code", "nocode", "it ", "si ", "tssr", "asr", "infrastructure", "python", "java",
+                 "php", "javascript", "big data", "helpdesk", "help desk", "sysadmin", "dsi", "digital"]
+
+# ---------- Autres job boards (actifs seulement si la clé est renseignée) ----------
+adzuna:                       # agrège de nombreux sites d'emploi (clé gratuite)
+  toutes_les_minutes: 120     # la clé gratuite est limitée : une recherche toutes les 2 h
+  pages_max: 2                # 50 offres par page
+  recherches:
+    - {type: Alternance, mots_ou: "alternance alternant apprentissage apprenti"}
+    - {type: Stage, mots_ou: "stage stagiaire"}
+jooble:                       # agrège de nombreux sites d'emploi (clé gratuite)
+  url: "https://fr.jooble.org/api/"
+  toutes_les_minutes: 60
+  recherches:
+    - {type: Alternance, mots: "alternance informatique"}
+    - {type: Alternance, mots: "alternance développeur"}
+    - {type: Alternance, mots: "alternance réseau cybersécurité"}
+    - {type: Alternance, mots: "alternance data"}
+    - {type: Stage, mots: "stage développeur"}
 
 # ---------- MODULE B : prospection à froid ----------
 module_b:
   # Mettre toute_la_france: true pour ignorer la liste de villes (beaucoup plus long).
   toute_la_france: false
-  # Les 10 plus grandes villes et leur métropole.
+  # Les 6 plus grandes villes et leur métropole (ajoutez-en en copiant une ligne).
   # epci = numéro SIREN de la métropole (annuaire des entreprises).
   # lat/lon = centre-ville, pour croiser avec La bonne alternance.
   villes:
@@ -55,10 +89,10 @@ module_b:
     Toulouse:    {epci: "243100518", lat: 43.6047, lon: 1.4442}
     Nice:        {epci: "200030195", lat: 43.7102, lon: 7.2620}
     Nantes:      {epci: "244400404", lat: 47.2184, lon: -1.5536}
-    Montpellier: {epci: "243400017", lat: 43.6108, lon: 3.8767}
-    Strasbourg:  {epci: "246700488", lat: 48.5734, lon: 7.7521}
-    Bordeaux:    {epci: "243300316", lat: 44.8378, lon: -0.5792}
-    Lille:       {epci: "200093201", lat: 50.6292, lon: 3.0573}
+    # Montpellier: {epci: "243400017", lat: 43.6108, lon: 3.8767}
+    # Strasbourg:  {epci: "246700488", lat: 48.5734, lon: 7.7521}
+    # Bordeaux:    {epci: "243300316", lat: 44.8378, lon: -0.5792}
+    # Lille:       {epci: "200093201", lat: 50.6292, lon: 3.0573}
   rayon_lba_km: 30
 
   # Entreprises du numérique : toutes tailles (avec au moins 1 salarié).
@@ -103,10 +137,16 @@ module_b:
     "21.20Z": "Industrie pharmaceutique"
     "26.20Z": "Fabrication d'ordinateurs"
     "71.12B": "Ingénierie, études techniques"
-  # Codes INSEE de tranche d'effectif : 01 = 1-2 sal., 03 = 6-9, 11 = 10-19,
-  # 12 = 20-49, 21 = 50-99, 22 = 100-199, 31 = 200-249 ... 53 = 10 000+
+  # Entreprises hors numérique : désactivées (une petite entreprise hors IT a
+  # rarement un service informatique). Mettre true pour les inclure.
+  inclure_hors_numerique: false
+  # Codes INSEE de tranche d'effectif : 01 = 1-2 sal., 02 = 3-5, 03 = 6-9,
+  # 11 = 10-19, 12 = 20-49, 21 = 50-99, 22 = 100-199 ... 53 = 10 000+
+  # Cible actuelle : de 1 à 49 salariés.
   effectif_min_numerique: "01"
-  effectif_min_hors_numerique: "21"
+  effectif_max_numerique: "12"
+  effectif_min_hors_numerique: "01"
+  effectif_max_hors_numerique: "12"
 
 # ---------- LA NOTE DE 1 À 10 ----------
 # Chaque critère reçoit une sous-note de 0 à 10, puis on fait une moyenne
@@ -124,6 +164,8 @@ note:
     offre_ancienne: 4
     susceptible_lba: 5      # "susceptible de recruter" selon La bonne alternance
     profil_seul: 2          # entreprise IT sans signal
+    coef_stage: 0.7         # une offre de stage compte 70 % d'une offre d'alternance
+    coef_emploi_junior: 0.6
   contact:
     decideur_mobile: 10     # décideur nommé + numéro mobile
     nom_et_numero: 7        # nom + numéro (standard)

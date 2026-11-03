@@ -4,16 +4,19 @@
 
 | Élément | Coût | Limite gratuite | Consommation estimée |
 |---|---|---|---|
-| La bonne alternance (offres + entreprises « susceptibles de recruter ») | 0 € | 60 appels / minute | ~40 à 90 appels par passage horaire |
+| La bonne alternance (offres + entreprises « susceptibles de recruter ») | 0 € | 60 appels / minute | ~40 à 90 appels par passage |
+| Adzuna (clé gratuite) | 0 € | quotas affichés dans votre espace | ~4 appels toutes les 2 h |
+| Jooble (clé gratuite) | 0 € | quotas fixés par clé | ~5 appels par heure |
 | Annuaire des entreprises | 0 € | 7 appels / seconde | quelques dizaines par heure, quelques milliers le 2 du mois |
-| GitHub Actions (dépôt privé) | 0 € | 2 000 min / mois | ~800 à 1 300 min (≈ 26 jours × 14 passages × 2-3 min + ~60 min pour le module B) |
-| GitHub Actions (dépôt public) | 0 € | illimité | — |
+| GitHub Actions (dépôt public) | 0 € | illimité | ~1 500 à 2 200 min (≈ 26 jours × 28 passages × 2-3 min + ~40 min pour le module B) |
+| GitHub Actions (dépôt privé) | 0 € | 2 000 min / mois | même consommation : risque de dépasser → passer à une veille horaire |
 | Gmail (mot de passe d'application) | 0 € | 500 destinataires / jour | quelques dizaines de mails par jour au maximum |
 | Google Sheets API | 0 € | 60 requêtes / minute | ~5 par passage |
 | Base de données (SQLite dans le cache GitHub) | 0 € | 10 Go de cache | quelques dizaines de Mo |
 
-Si un jour les 2 000 minutes ne suffisent pas : passer à un lancement toutes
-les 2 heures (modifier `5-19` en `5-19/2` dans `.github/workflows/radar.yml`).
+En dépôt privé, pour rester sous 2 000 minutes : remplacer `7,37 5-19 * * 1-6`
+par `7 5-19 * * 1-6` dans `.github/workflows/radar.yml` (une veille par heure,
+~1 100 min/mois ; le récap de 13h30 partira alors vers 14h).
 
 ## Options payantes possibles plus tard (non installées)
 
@@ -34,4 +37,5 @@ Exemples :
   ~0,40-0,50 € par numéro.
 
 Aurélien utilisant déjà Lusha pour les numéros, ces options ne sont pas utiles
-pour l'instant.
+pour l'instant. Adzuna et Jooble suffisent pour couvrir une grande partie des
+annonces des autres sites d'emploi.

@@ -167,6 +167,12 @@ def lire_entreprise(element: dict) -> dict:
     }
 
 
+def _libelle_source(label: str | None) -> str:
+    if not label or "bonne alternance" in label.lower() or label.lower().startswith(("lba", "offres_emploi_lba")):
+        return "La bonne alternance"
+    return f"La bonne alternance ({label})"
+
+
 def lire_offre(job: dict) -> dict:
     """Une offre au format de l'outil."""
     o = job.get("offer") or {}
@@ -183,7 +189,8 @@ def lire_offre(job: dict) -> dict:
         "publiee_le": (o.get("publication") or {}).get("creation"),
         "contrat": ", ".join(contrat.get("type") or []) or "Alternance",
         "nb_postes": o.get("opening_count") or 1,
-        "partenaire": job["identifier"].get("partner_label") or "La bonne alternance",
+        "type_offre": "Alternance",
+        "partenaire": _libelle_source(job["identifier"].get("partner_label")),
         "via_ecole": bool(job.get("is_delegated")),
         "statut": o.get("status") or "Active",
     }

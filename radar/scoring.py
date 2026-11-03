@@ -27,19 +27,25 @@ def _age_heures(publiee_le: str | None, maintenant: datetime) -> float | None:
 
 
 def note_besoin(cfg_b: dict, publiee_le: str | None, est_offre: bool,
-                susceptible: bool, maintenant: datetime) -> float:
+                susceptible: bool, maintenant: datetime, type_offre: str = "Alternance") -> float:
     if est_offre:
-        age = _age_heures(publiee_le, maintenant)
-        if age is None:
-            return cfg_b["offre_moins_30j"]
-        if age <= 48:
-            return cfg_b["offre_moins_48h"]
-        if age <= 24 * 7:
-            return cfg_b["offre_moins_7j"]
-        if age <= 24 * 30:
-            return cfg_b["offre_moins_30j"]
-        return cfg_b["offre_ancienne"]
+        coef = {"Stage": cfg_b.get("coef_stage", 0.7),
+                "Emploi junior": cfg_b.get("coef_emploi_junior", 0.6)}.get(type_offre, 1.0)
+        return coef * _besoin_offre(cfg_b, publiee_le, maintenant)
     return cfg_b["susceptible_lba"] if susceptible else cfg_b["profil_seul"]
+
+
+def _besoin_offre(cfg_b: dict, publiee_le: str | None, maintenant: datetime) -> float:
+    age = _age_heures(publiee_le, maintenant)
+    if age is None:
+        return cfg_b["offre_moins_30j"]
+    if age <= 48:
+        return cfg_b["offre_moins_48h"]
+    if age <= 24 * 7:
+        return cfg_b["offre_moins_7j"]
+    if age <= 24 * 30:
+        return cfg_b["offre_moins_30j"]
+    return cfg_b["offre_ancienne"]
 
 
 def note_contact(cfg_c: dict, decideur_nomme: bool, telephone_type: str | None) -> float:
@@ -81,14 +87,15 @@ def noter(cfg: dict, *, est_offre: bool, publiee_le: str | None = None,
           susceptible: bool = False, decideur_nomme: bool = False,
           telephone_type: str | None = None, effectif_min: int | None = None,
           plusieurs_postes: bool = False, jeune: bool = False, ca_hausse: bool = False,
-          numerique: bool = False, maintenant: datetime | None = None) -> int:
+          numerique: bool = False, maintenant: datetime | None = None,
+          type_offre: str = "Alternance") -> int:
     """Calcule la note finale de 1 à 10."""
     n = cfg["note"]
     p = n["poids"]
     maintenant = maintenant or datetime.now(PARIS)
     gros_si = (not numerique) and effectif_min is not None and effectif_min >= 250
     sous_notes = {
-        "besoin": note_besoin(n["besoin"], publiee_le, est_offre, susceptible, maintenant),
+        "besoin": note_besoin(n["besoin"], publiee_le, est_offre, susceptible, maintenant, type_offre),
         "contact": note_contact(n["contact"], decideur_nomme, telephone_type),
         "taille": note_taille(n["taille"], effectif_min),
         "bonus": note_bonus(n["bonus"], plusieurs_postes, jeune, ca_hausse, numerique, gros_si),

@@ -14,7 +14,8 @@ from . import db
 from .config import PARIS
 from .contacts import choisir_decideur, formater_numero, type_numero
 from .scoring import noter
-from .sources import annuaire, lba
+from .sources import adzuna, annuaire, jooble, lba
+from .sources.commun import est_exclue, normaliser
 
 MAX_FICHES_PAR_PASSAGE = 400   # le reste est complété au passage suivant
 
@@ -33,20 +34,82 @@ def est_numerique(cfg: dict, naf: str | None) -> bool:
     return naf in cfg["module_b"]["naf_numerique"] or naf.startswith(("58.2", "62.", "63.1", "61."))
 
 
-def collecter(cfg: dict, con, amorcage: bool) -> list[str]:
-    """Interroge La bonne alternance et enregistre les nouveautés."""
+def _source_due(cfg: dict, con, nom: str, force: bool) -> bool:
+    """Adzuna / Jooble ont des quotas : on ne les interroge pas à chaque passage."""
+    dernier = db.get_meta(con, f"dernier:{nom}")
+    if force or not dernier:
+        return True
+    ecart = datetime.now(PARIS) - datetime.fromisoformat(dernier)
+    return ecart >= timedelta(minutes=cfg[nom]["toutes_les_minutes"] - 5)
+
+
+def _recuperer(cfg: dict, con, force: bool) -> list[tuple[str, dict, bool]]:
+    """Interroge chaque source. Une source en panne est notée et les autres continuent.
+    Renvoie [(nom_source, offre, amorcage)] et marque les entreprises "susceptibles"."""
+    resultats = []
+
+    def lancer(nom, fonction):
+        amorcage = db.get_meta(con, f"amorce:{nom}") is None
+        try:
+            offres = fonction()
+        except Exception as e:
+            db.journaliser(con, nom, str(e))
+            return
+        db.set_meta(con, f"amorce:{nom}", datetime.now(PARIS).isoformat())
+        db.set_meta(con, f"dernier:{nom}", datetime.now(PARIS).isoformat())
+        print(f"📥 {nom} : {len(offres)} offres.")
+        resultats.extend((nom, o, amorcage) for o in offres)
+
+    def via_lba():
+        jobs, recruteurs, avertissements = lba.rechercher_france(cfg)
+        for a in sorted(set(avertissements))[:5]:
+            db.journaliser(con, "La bonne alternance", a)
+        for r in recruteurs:   # entreprises "susceptibles de recruter" déjà connues
+            e = lba.lire_entreprise(r)
+            if e["siren"]:
+                con.execute("UPDATE entreprises SET lba_susceptible=1 WHERE cle=?", (e["siren"],))
+        con.commit()
+        return [lba.lire_offre(j) for j in jobs]
+
+    lancer("La bonne alternance", via_lba)
+    if adzuna.actif() and _source_due(cfg, con, "adzuna", force):
+        lancer("adzuna", lambda: adzuna.rechercher(cfg))
+    if jooble.actif() and _source_due(cfg, con, "jooble", force):
+        lancer("jooble", lambda: jooble.rechercher(cfg))
+    return resultats
+
+
+def _resoudre_siren(cfg: dict, con, ent: dict, budget: list) -> None:
+    """Offre Adzuna / Jooble (nom + ville seulement) : retrouve le SIREN dans l'annuaire."""
+    if ent.get("siren") or budget[0] <= 0:
+        return
+    cle_cache = f"resolu:{normaliser(ent['nom'])}|{normaliser(ent.get('ville'))}"
+    connu = db.get_meta(con, cle_cache)
+    if connu is None:
+        budget[0] -= 1
+        try:
+            res = annuaire.chercher_par_nom(ent["nom"], ent.get("ville"),
+                                            cfg.get("pause_entre_appels_annuaire_s", 0.2))
+        except Exception as e:
+            db.journaliser(con, "Annuaire des entreprises", str(e))
+            budget[0] = 0
+            return
+        connu = res["siren"] if res else "-"
+        db.set_meta(con, cle_cache, connu)
+    if connu != "-":
+        ent["siren"] = connu
+
+
+def collecter(cfg: dict, con, force: bool = False) -> list[str]:
+    """Récupère les offres de toutes les sources et enregistre les nouveautés.
+    Renvoie les identifiants des nouvelles offres."""
     maintenant = datetime.now(PARIS)
     limite = maintenant - timedelta(days=cfg["module_a"]["age_max_offre_jours"])
     exclus = set(cfg["module_a"]["niveaux_exclus"])
-
-    jobs, recruteurs, avertissements = lba.rechercher_france(cfg)
-    for a in sorted(set(avertissements))[:5]:
-        db.journaliser(con, "La bonne alternance", a)
-    print(f"📥 La bonne alternance : {len(jobs)} offres, {len(recruteurs)} entreprises susceptibles.")
+    budget_resolution = [MAX_FICHES_PAR_PASSAGE // 2]
 
     nouvelles = []
-    for job in jobs:
-        o = lba.lire_offre(job)
+    for nom_source, o, amorcage in _recuperer(cfg, con, force):
         if o["statut"] != "Active" or (o["niveau_code"] or "") in exclus:
             continue
         if o["publiee_le"]:
@@ -58,8 +121,16 @@ def collecter(cfg: dict, con, amorcage: bool) -> list[str]:
         if con.execute("SELECT 1 FROM offres WHERE id=?", (o["id"],)).fetchone():
             continue
         ent = o["entreprise"]
+        if est_exclue(cfg, ent["nom"]):
+            continue
+        _resoudre_siren(cfg, con, ent, budget_resolution)
         cle = cle_entreprise(ent)
         if db.est_bloquee(con, cle):
+            continue
+        # Même annonce reprise par plusieurs sites : on ne la garde qu'une fois
+        doublon = con.execute("""SELECT 1 FROM offres WHERE cle_entreprise=? AND lower(titre)=lower(?)""",
+                              (cle, o["titre"])).fetchone()
+        if doublon:
             continue
         numero = formater_numero(ent["telephone"])
         db.enregistrer_entreprise(con, cle, {
@@ -72,24 +143,17 @@ def collecter(cfg: dict, con, amorcage: bool) -> list[str]:
         ligne = con.execute("SELECT telephone, lien FROM entreprises WHERE cle=?", (cle,)).fetchone()
         if numero and not ligne["telephone"]:
             db.enregistrer_entreprise(con, cle, {"telephone": numero, "telephone_type": type_numero(numero),
-                                                 "telephone_source": "annonce La bonne alternance"})
+                                                 "telephone_source": f"annonce {nom_source}"})
         if not ligne["lien"]:
             db.enregistrer_entreprise(con, cle, {"lien": ent["site_web"] or (
                 annuaire.FICHE.format(siren=ent["siren"]) if ent["siren"] else None)})
         con.execute("""INSERT INTO offres (id, cle_entreprise, titre, niveau, lien, publiee_le, ville, contrat,
-                       nb_postes, partenaire, via_ecole, telephone, premiere_vue, amorcage)
-                       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                       type_offre, nb_postes, partenaire, via_ecole, telephone, premiere_vue, amorcage)
+                       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                     (o["id"], cle, o["titre"], o["niveau"], o["lien"] or ent["lien"], o["publiee_le"],
-                     ent["ville"], o["contrat"], o["nb_postes"], o["partenaire"], int(o["via_ecole"]),
-                     numero, db.maintenant_iso(), int(amorcage)))
+                     ent["ville"], o["contrat"], o.get("type_offre", "Alternance"), o["nb_postes"],
+                     o["partenaire"], int(o["via_ecole"]), numero, db.maintenant_iso(), int(amorcage)))
         nouvelles.append(o["id"])
-    con.commit()
-
-    # Entreprises "susceptibles de recruter" : on marque celles déjà connues
-    for r in recruteurs:
-        e = lba.lire_entreprise(r)
-        if e["siren"]:
-            con.execute("UPDATE entreprises SET lba_susceptible=1 WHERE cle=?", (e["siren"],))
     con.commit()
 
     completer_annuaire(cfg, con)
@@ -147,7 +211,7 @@ def noter_offres(cfg: dict, con, ids: list[str]) -> None:
             db.enregistrer_entreprise(con, e["cle"], {"decideur": texte, "decideur_nomme": int(nomme)})
             e = con.execute("SELECT * FROM entreprises WHERE cle=?", (e["cle"],)).fetchone()
         nb_offres = con.execute("SELECT COUNT(*) n FROM offres WHERE cle_entreprise=?", (e["cle"],)).fetchone()["n"]
-        note = noter(cfg, est_offre=True, publiee_le=o["publiee_le"],
+        note = noter(cfg, est_offre=True, publiee_le=o["publiee_le"], type_offre=o["type_offre"],
                      decideur_nomme=bool(e["decideur_nomme"]), telephone_type=e["telephone_type"],
                      effectif_min=e["effectif_min"], plusieurs_postes=(o["nb_postes"] or 1) > 1 or nb_offres > 1,
                      jeune=_jeune(e["date_creation"]), ca_hausse=bool(e["ca_en_hausse"]),

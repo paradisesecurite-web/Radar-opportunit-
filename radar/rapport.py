@@ -37,8 +37,7 @@ def _numero(ent) -> str:
 
 def ligne_offre(ent, offre, ex_froid: bool = False) -> dict:
     """Ligne du tableau pour une offre (ent et offre sont des lignes SQLite)."""
-    partenaire = offre["partenaire"] or ""
-    sources = ["La bonne alternance" + (f" ({partenaire})" if "bonne alternance" not in partenaire.lower() else "")]
+    sources = [offre["partenaire"] or "La bonne alternance"]
     if offre["via_ecole"]:
         sources.append("via une autre école")
     if ent["decideur_source"]:
@@ -50,7 +49,8 @@ def ligne_offre(ent, offre, ex_froid: bool = False) -> dict:
         "Type": "Offre (ex-froid)" if ex_froid else "Offre",
         "Entreprise": ent["nom"],
         "Ville": offre["ville"] or ent["ville"] or "",
-        "Poste recherché": offre["titre"] + (f" ({offre['nb_postes']} postes)" if (offre["nb_postes"] or 1) > 1 else ""),
+        "Poste recherché": offre["titre"] + (f" ({offre['nb_postes']} postes)" if (offre["nb_postes"] or 1) > 1 else "")
+                           + (f" [{offre['type_offre']}]" if offre["type_offre"] and offre["type_offre"] != "Alternance" else ""),
         "Niveau": offre["niveau"] or "",
         "Lien": offre["lien"] or ent["lien"] or "",
         "Date de publication": _date_fr(offre["publiee_le"]),

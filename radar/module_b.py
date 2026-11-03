@@ -9,7 +9,7 @@ Rafraîchi une fois par mois (et à la demande pour une seule ville) :
 """
 from . import db
 from .contacts import choisir_decideur, formater_numero, type_numero
-from .geo import TOUS_DEPARTEMENTS, tranches_a_partir_de
+from .geo import TOUS_DEPARTEMENTS, TRANCHES, tranches_entre
 from .module_a import cle_entreprise, est_numerique
 from .scoring import noter
 from .sources import annuaire, lba
@@ -34,12 +34,14 @@ def rafraichir(cfg: dict, con, ville: str | None = None) -> int:
     total = 0
     for nom_zone, zone in _zones(cfg, ville):
         vues = set()
-        familles = [(mb["naf_numerique"], mb["effectif_min_numerique"]),
-                    (mb["naf_hors_numerique"], mb["effectif_min_hors_numerique"])]
-        for codes, eff_min in familles:
+        familles = [(mb["naf_numerique"], mb["effectif_min_numerique"], mb["effectif_max_numerique"])]
+        if mb.get("inclure_hors_numerique"):
+            familles.append((mb["naf_hors_numerique"], mb["effectif_min_hors_numerique"],
+                             mb["effectif_max_hors_numerique"]))
+        for codes, eff_min, eff_max in familles:
             for naf, libelle in codes.items():
                 try:
-                    for res in annuaire.lister(pause, naf, tranches_a_partir_de(eff_min),
+                    for res in annuaire.lister(pause, naf, tranches_entre(eff_min, eff_max),
                                                epci=zone.get("epci"), departement=zone.get("departement")):
                         if _enregistrer(cfg, con, res, nom_zone, libelle):
                             vues.add(res["siren"])
@@ -85,8 +87,11 @@ def croiser_lba(cfg: dict, con, nom_zone: str, zone: dict) -> None:
         db.journaliser(con, "La bonne alternance (croisement)", f"{nom_zone} : {e}")
         return
     marquees = 0
+    eff_max = TRANCHES[cfg["module_b"]["effectif_max_numerique"]][1]   # ex. "12" -> 20 (tranche 20-49)
     for r in recruteurs:
         e = lba.lire_entreprise(r)
+        if e["effectif_min"] is not None and (e["effectif_min"] > eff_max or e["effectif_min"] < 1):
+            continue   # hors de la taille ciblée
         cle = cle_entreprise(e)
         if db.est_bloquee(con, cle):
             continue

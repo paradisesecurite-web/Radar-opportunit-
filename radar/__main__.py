@@ -1,8 +1,8 @@
 """Point d'entrée : python -m radar <commande>
 
 Commandes :
-  heure              passage horaire (7h-20h, lun-sam) : nouvelles offres, alertes 🔥,
-                     et récap du matin au premier passage à partir de 8h
+  heure              passage toutes les 30 min (7h-20h, lun-sam) : nouvelles offres,
+                     alertes 🔥, et récaps de 8h et 13h30
   test-offres        TEST : cherche les offres maintenant et envoie tout de suite un mail
   rafraichir-froid   reconstruit la base du module B (toutes les villes, ou --ville X)
   test-froid         TEST : module B sur une seule ville (--ville Lyon) + mail d'appels à froid
@@ -30,22 +30,18 @@ def _ouvrir_sheet(con):
         return None
 
 
-def _collecter(cfg, con, sh) -> list[str]:
+def _collecter(cfg, con, sh, force: bool = False) -> list[str]:
     """Synchronise les statuts puis récupère les offres. Une panne n'arrête pas tout."""
     try:
         suivi.synchroniser(con, sh)
     except Exception as e:
         db.journaliser(con, "Google Sheet", f"lecture des statuts : {e}")
-    amorcage = db.get_meta(con, "amorce") is None
     try:
-        nouvelles = module_a.collecter(cfg, con, amorcage)
-    except Exception as e:
-        db.journaliser(con, "La bonne alternance", str(e))
+        return module_a.collecter(cfg, con, force)
+    except Exception as e:   # filet de sécurité : chaque source est déjà protégée
+        db.journaliser(con, "Collecte des offres", str(e))
         traceback.print_exc()
-        nouvelles = []
-    else:
-        db.set_meta(con, "amorce", maintenant().isoformat())
-    return nouvelles
+        return []
 
 
 def main(argv=None) -> int:
@@ -66,17 +62,23 @@ def main(argv=None) -> int:
             print(f"⏸️  {now:%A %H:%M} (Paris) : hors des horaires, rien à faire.")
             return 0
         sh = _ouvrir_sheet(con)
-        nouvelles = _collecter(cfg, con, sh)
+        nouvelles = _collecter(cfg, con, sh, force=args.force)
         n = envois.alertes(cfg, con, sh, nouvelles)
         print(f"🔥 {n} alerte(s) envoyée(s).")
-        if now.hour >= h["heure_recap"] and db.get_meta(con, "dernier_recap") != now.date().isoformat():
-            o, f = envois.recap(cfg, con, sh)
-            db.set_meta(con, "dernier_recap", now.date().isoformat())
-            print(f"📬 Récap envoyé : {o} offres, {f} appels à froid.")
+        # Récaps (8h, 13h30) : si un passage a été sauté, on n'envoie que le plus récent
+        aujourd_hui = now.date().isoformat()
+        dus = [r for r in h["recaps"] if now.strftime("%H:%M") >= r["heure"]
+               and db.get_meta(con, f"recap:{r['heure']}") != aujourd_hui]
+        if dus:
+            r = dus[-1]
+            o, f = envois.recap(cfg, con, sh, avec_froid=any(d["avec_froid"] for d in dus), nom=r["nom"])
+            for d in dus:
+                db.set_meta(con, f"recap:{d['heure']}", aujourd_hui)
+            print(f"📬 {r['nom']} envoyé : {o} offres, {f} appels à froid.")
 
     elif args.commande == "test-offres":
         sh = _ouvrir_sheet(con)
-        _collecter(cfg, con, sh)
+        _collecter(cfg, con, sh, force=True)
         o, _ = envois.recap(cfg, con, sh, test=True, avec_froid=False)
         print(f"📬 Mail de test envoyé : {o} offres.")
 
@@ -99,7 +101,6 @@ def main(argv=None) -> int:
         sh = _ouvrir_sheet(con)
         suivi.synchroniser(con, sh) if sh else None
         envois.recap(cfg, con, sh)
-        db.set_meta(con, "dernier_recap", now.date().isoformat())
     return 0
 
 

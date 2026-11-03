@@ -10,6 +10,7 @@ from datetime import datetime, timedelta
 from . import db, mailer
 from . import sheet as gsheet
 from .config import PARIS
+from .geo import TRANCHES
 from .module_b import noter_froid
 from .rapport import ligne_froid, ligne_offre, page
 from .suivi import deja_envoye
@@ -92,8 +93,8 @@ def alertes(cfg: dict, con, sh, nouvelles: list[str]) -> int:
 
 
 def recap(cfg: dict, con, sh, test: bool = False, avec_froid: bool = True,
-          ville: str | None = None) -> tuple[int, int]:
-    """Mail du matin : "Offres" (notées 5+) puis "Liste d'appels à froid"."""
+          ville: str | None = None, nom: str = "Récap") -> tuple[int, int]:
+    """Mail récapitulatif : les offres notées 5+ puis, le matin, la liste d'appels à froid."""
     m = cfg["mails"]
     offres = []
     if not ville:   # test d'une ville = liste d'appels à froid seulement
@@ -106,12 +107,14 @@ def recap(cfg: dict, con, sh, test: bool = False, avec_froid: bool = True,
     lignes_froid, froids = [], []
     if avec_froid:
         noter_froid(cfg, con, ville)
-        sql = """SELECT * FROM entreprises WHERE module='B' AND note_froid IS NOT NULL
-                 AND envoye_froid_le IS NULL AND envoye_offre_le IS NULL AND statut='Nouveau'"""
-        params: tuple = ()
-        if ville:
-            sql += " AND lower(metropole)=lower(?)"
-            params = (ville,)
+        mb = cfg["module_b"]
+        eff_max = TRANCHES[mb["effectif_max_numerique"]][1]
+        villes = [ville] if ville else list(mb["villes"])
+        sql = f"""SELECT * FROM entreprises WHERE module='B' AND note_froid IS NOT NULL
+                 AND envoye_froid_le IS NULL AND envoye_offre_le IS NULL AND statut='Nouveau'
+                 AND (effectif_min IS NULL OR effectif_min BETWEEN 1 AND ?)
+                 AND lower(metropole) IN ({','.join('lower(?)' for _ in villes)})"""
+        params: tuple = (eff_max, *villes)
         sql += " ORDER BY note_froid DESC, lba_susceptible DESC, effectif_min ASC"
         for e in con.execute(sql, params):
             if len(froids) >= m["nb_appels_a_froid"]:
@@ -135,7 +138,9 @@ def recap(cfg: dict, con, sh, test: bool = False, avec_froid: bool = True,
     affichees = lignes_offres[:maxi]
     if len(lignes_offres) > maxi:
         pied = f"<p>+ {len(lignes_offres) - maxi} autres offres dans le Google Sheet.</p>" + pied
-    sujet = f"Récap du {date_txt} – {len(lignes_offres)} offres – {len(lignes_froid)} appels à froid"
+    sujet = f"{nom} du {date_txt} – {len(lignes_offres)} offres"
+    if avec_froid:
+        sujet += f" – {len(lignes_froid)} appels à froid"
     if test:
         sujet = "TEST – " + sujet
     sections = []

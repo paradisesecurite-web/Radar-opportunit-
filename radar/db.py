@@ -61,6 +61,7 @@ CREATE TABLE IF NOT EXISTS offres (
     publiee_le TEXT,
     ville TEXT,
     contrat TEXT,
+    type_offre TEXT DEFAULT 'Alternance',   -- Alternance / Stage / Emploi junior
     nb_postes INTEGER,
     partenaire TEXT,
     via_ecole INTEGER DEFAULT 0,

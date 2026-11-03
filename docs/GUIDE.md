@@ -4,27 +4,28 @@ Ce guide part de zéro. Compte environ **45 minutes** la première fois.
 Tout est **gratuit**.
 
 Ce que fait l'outil, en bref :
-- **toutes les heures (7h-20h, lundi-samedi)**, il cherche les nouvelles offres
-  d'alternance IT dans toute la France et envoie un mail 🔥 dès qu'une
-  entreprise est notée 8/10 ou plus ;
-- **chaque matin vers 8h**, il envoie un récap : les offres notées 5+ et une
-  liste de 40 entreprises à appeler « à froid » ;
+- **toutes les 30 minutes (7h-20h, lundi-samedi)**, il cherche les nouvelles
+  offres d'alternance IT (et de stage IT) dans toute la France sur
+  La bonne alternance (avec France Travail et ses sites partenaires), Adzuna
+  et Jooble, et envoie un mail 🔥 dès qu'une entreprise est notée 8/10 ou plus ;
+- **à 8h et à 13h30**, il envoie un récap de toutes les nouvelles offres
+  notées 5+ avec le lien de l'annonce ; celui de 8h ajoute une liste de
+  **20 entreprises de 1 à 49 salariés** à appeler « à froid » dans les
+  6 plus grandes villes ;
 - **tout est rangé dans un Google Sheet** où Aurélien coche ce qu'il a vu
   et note le statut de chaque entreprise.
 
+Aurélien n'a **pas besoin d'accès à GitHub** : GitHub est seulement le moteur
+qui tourne tout seul. Aurélien reçoit les mails et utilise le Google Sheet.
+
 ---
 
-## Étape 0 – Mettre le dépôt GitHub en privé (important)
+## Étape 0 – Public ou privé ?
 
-Le dépôt est **public** aujourd'hui. L'outil n'y écrit aucune donnée
-personnelle, mais un dépôt privé est plus sûr (les journaux d'exécution
-deviennent privés aussi).
-
-1. Ouvrez le dépôt sur github.com → **Settings** (Paramètres).
-2. Tout en bas, « Danger Zone » → **Change visibility** → **Make private**.
-
-Un dépôt privé dispose de 2 000 minutes gratuites par mois de lancements
-automatiques ; l'outil en utilise environ 800 à 1 300 (voir `docs/COUTS.md`).
+Le dépôt peut rester **public** : l'outil n'écrit aucun nom ni numéro dans
+le code ni dans les journaux, et les lancements automatiques sont alors
+illimités et gratuits. En **privé**, la limite est de 2 000 minutes par mois :
+passez alors la veille à toutes les heures (voir `docs/COUTS.md`).
 
 ## Étape 1 – Vérifier la branche principale
 
@@ -42,6 +43,21 @@ request » → « Merge pull request »).
 4. Dans votre espace, **générez un jeton** (token) et copiez-le.
 5. ⚠️ Le jeton est valable **1 an** : mettez un rappel dans votre agenda
    pour le régénérer dans 11 mois. S'il expire, le récap du matin l'indiquera.
+
+## Étape 2 bis – Les clés Adzuna et Jooble (gratuites, facultatives)
+
+Ces deux sites regroupent les annonces de très nombreux sites d'emploi.
+Sans leurs clés, l'outil fonctionne avec La bonne alternance seule.
+
+**Adzuna**
+1. Allez sur https://developer.adzuna.com → **Register**.
+2. Une fois connecté, notez l'**Application ID** et l'**Application Key**.
+3. Votre espace indique vos quotas : l'outil interroge Adzuna toutes les 2 h
+   (réglable dans `config.yaml`, rubrique `adzuna`).
+
+**Jooble**
+1. Allez sur https://jooble.org/api/about et remplissez le formulaire.
+2. La clé arrive par e-mail.
 
 ## Étape 3 – Le mot de passe d'application Gmail
 
@@ -85,7 +101,7 @@ Les clés ne sont **jamais** écrites dans le code : elles sont rangées dans le
 « Secrets » du dépôt.
 
 Sur GitHub : **Settings** → **Secrets and variables** → **Actions** →
-**New repository secret**. Créez ces 6 secrets (nom exact à gauche) :
+**New repository secret**. Créez ces secrets (nom exact à gauche) :
 
 | Nom du secret | Valeur |
 |---|---|
@@ -95,6 +111,9 @@ Sur GitHub : **Settings** → **Secrets and variables** → **Actions** →
 | `DESTINATAIRES` | `aurelien.wagner@iscod.fr` (plusieurs adresses : séparées par des virgules) |
 | `GOOGLE_SERVICE_ACCOUNT_JSON` | ouvrez le fichier JSON téléchargé (étape 4a.5) avec le Bloc-notes, copiez **tout** son contenu |
 | `GOOGLE_SHEET_ID` | l'identifiant du Sheet (étape 4b.4) |
+| `ADZUNA_APP_ID` | facultatif : Application ID Adzuna (étape 2 bis) |
+| `ADZUNA_APP_KEY` | facultatif : Application Key Adzuna |
+| `JOOBLE_API_KEY` | facultatif : clé Jooble |
 
 ## Étape 6 – Les tests
 
@@ -109,7 +128,7 @@ bouton **Run workflow** à droite.
    → **Run workflow**. En 5-15 minutes, il reçoit la « Liste d'appels à
    froid » de Lyon et l'onglet **Appels à froid** se remplit.
 3. **Base à froid complète** : choisissez `rafraichir-froid` et **videz** le
-   champ ville → **Run workflow** (30 à 60 minutes). Ensuite, elle se
+   champ ville → **Run workflow** (20 à 40 minutes). Ensuite, elle se
    rafraîchit seule le 2 de chaque mois.
 
 Pour suivre un lancement : cliquez dessus dans l'onglet Actions. Une coche
@@ -123,7 +142,12 @@ C'est tout : les lancements automatiques démarrent seuls.
 
 - **Mail 🔥** : `🔥 9/10 – Entreprise – poste – ville`. Le nom de l'entreprise
   est le lien vers l'annonce ; le numéro est cliquable pour appeler.
-- **Récap du matin** : `Récap du mardi 04/11 – X offres – Y appels à froid`.
+- **Récap de 8h** : `Récap du mardi 04/11 – X offres – Y appels à froid`.
+- **Récap de 13h30** : `Récap de 13h30 du mardi 04/11 – X offres`.
+- Les offres de **stage IT** apparaissent avec la mention `[Stage]` : une
+  entreprise qui prend des stagiaires peut passer à l'alternance.
+- « **via une autre école** » : offre publiée par une école ou un CFA pour une
+  entreprise partenaire. Les offres d'ISCOD elle-même sont exclues.
 - **Google Sheet** (appli Google Sheets sur téléphone) :
   - colonne **Statut** : Nouveau / Appelé / À rappeler / Pas intéressé / Signé ;
   - colonne **Vu ✓** : case à cocher pour se repérer ;
@@ -141,11 +165,12 @@ C'est tout : les lancements automatiques démarrent seuls.
 
 Tous les réglages sont dans **`config.yaml`** (sur GitHub : cliquez sur le
 fichier → icône crayon → modifiez → **Commit changes**) :
-- villes du module B, ou `toute_la_france: true` ;
+- villes du module B (6 aujourd'hui), taille ciblée (1 à 49 salariés), ou `toute_la_france: true` ;
+- mots-clés des recherches Adzuna et Jooble ;
 - codes NAF ciblés (ajouter / retirer une ligne) ;
 - codes métiers ROME ;
 - poids de la note, seuil d'alerte (8), seuil du récap (5) ;
-- nombre d'appels à froid (40), horaires.
+- nombre d'appels à froid (20), heures des récaps (8h, 13h30), horaires de veille.
 
 ## Dépannage
 
@@ -167,7 +192,9 @@ fichier → icône crayon → modifiez → **Commit changes**) :
   entrepreneurs qui ont demandé à ne pas être diffusés sont exclus.
 - Liste d'opposition : onglet « Ne pas recontacter ».
 - Aucune donnée personnelle n'est écrite dans le code ni dans les journaux.
-- L'outil n'utilise **que des API officielles**, aucun aspirateur de sites.
+- L'outil n'utilise **que des API officielles**, aucun aspirateur de sites
+  (Indeed et LinkedIn l'interdisent et bloquent les serveurs automatiques ;
+  Adzuna et Jooble reprennent une grande partie de leurs annonces).
 - Conditions d'utilisation de La bonne alternance :
   https://api.apprentissage.beta.gouv.fr/fr/cgu. L'usage (placer des
   alternants) va dans le sens du service.

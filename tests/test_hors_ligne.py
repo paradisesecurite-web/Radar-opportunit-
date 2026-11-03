@@ -124,3 +124,48 @@ def test_alerte_horaire(env, monkeypatch):
         f.unlink()
     assert cli.main(["heure", "--force"]) == 0
     assert not [f for f in env.glob("apercu_*.html") if "NouvelleStartup" in f.name]
+
+
+class _Rep:
+    def __init__(self, data, code=200):
+        self._d, self.status_code = data, code
+
+    def json(self):
+        return self._d
+
+    def raise_for_status(self):
+        pass
+
+
+def test_adzuna_jooble(env, monkeypatch):
+    from radar.sources import adzuna, jooble
+    monkeypatch.setenv("ADZUNA_APP_ID", "x")
+    monkeypatch.setenv("ADZUNA_APP_KEY", "y")
+    monkeypatch.setenv("JOOBLE_API_KEY", "z")
+    monkeypatch.setattr(lba, "_appeler", lambda params, pause: {"jobs": [], "recruiters": [], "warnings": []})
+    frais = (MAINTENANT - timedelta(hours=2)).isoformat()
+    monkeypatch.setattr(adzuna.requests, "get", lambda *a, **k: _Rep({"results": [
+        {"id": "a1", "title": "Alternance Développeur web H/F", "created": frais,
+         "redirect_url": "https://www.adzuna.fr/details/a1", "company": {"display_name": "PetiteTech SAS"},
+         "location": {"area": ["France", "Auvergne-Rhône-Alpes", "Rhône", "Lyon"]},
+         "category": {"tag": "it-jobs"}},
+        {"id": "a2", "title": "Alternance technicien réseau", "created": frais,
+         "redirect_url": "https://www.adzuna.fr/details/a2", "company": {"display_name": "ISCOD"},
+         "location": {"area": ["France", "Île-de-France", "Paris"]}, "category": {"tag": "it-jobs"}},
+    ]}))
+    monkeypatch.setattr(jooble.requests, "post", lambda *a, **k: _Rep({"jobs": [
+        {"id": 7, "title": "Alternance Développeur web H/F", "company": "PetiteTech", "location": "Lyon",
+         "link": "https://fr.jooble.org/7", "updated": frais, "source": "indeed.fr", "snippet": ""},
+        {"id": 8, "title": "Stage développeur Python", "company": "Campus Numérique", "location": "Nantes",
+         "link": "https://fr.jooble.org/8", "updated": frais, "source": "hellowork.com", "snippet": ""},
+        {"id": 9, "title": "Alternance commercial", "company": "Boutique", "location": "Nice",
+         "link": "https://fr.jooble.org/9", "updated": frais, "snippet": ""},
+    ]}))
+    assert cli.main(["test-offres"]) == 0
+    html = next(env.glob("apercu_*.html")).read_text(encoding="utf-8")
+    assert "adzuna.fr/details/a1" in html                 # lien vers l'annonce
+    assert "ISCOD" not in html.split("<h3")[1]            # sa propre école est exclue
+    assert "Boutique" not in html                         # pas un poste IT
+    assert "[Stage]" in html and "via une autre école" in html
+    assert html.count("PetiteTech") == 1                  # même annonce sur 2 sites = 1 ligne
+    assert "Julie MARTIN" in html                         # SIREN retrouvé par le nom dans l'annuaire

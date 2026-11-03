@@ -39,3 +39,9 @@ ORDRE_TRANCHES = ["01", "02", "03", "11", "12", "21", "22", "31", "32", "41", "4
 def tranches_a_partir_de(code_min: str) -> list[str]:
     """Liste des tranches d'effectif à partir d'un code (ex. "21" -> 50 salariés et +)."""
     return ORDRE_TRANCHES[ORDRE_TRANCHES.index(code_min):]
+
+
+def tranches_entre(code_min: str, code_max: str | None = None) -> list[str]:
+    """Tranches d'effectif entre deux codes inclus (ex. "01" à "12" = 1 à 49 salariés)."""
+    fin = ORDRE_TRANCHES.index(code_max) + 1 if code_max else len(ORDRE_TRANCHES)
+    return ORDRE_TRANCHES[ORDRE_TRANCHES.index(code_min):fin]

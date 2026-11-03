@@ -1,7 +1,7 @@
 # Lancement automatique du Radar alternance IT (gratuit avec GitHub Actions).
 #
-# - Toutes les heures du lundi au samedi : nouvelles offres + alertes 🔥,
-#   et récap du matin au premier passage à partir de 8h (heure de Paris).
+# - Toutes les 30 minutes du lundi au samedi : nouvelles offres + alertes 🔥,
+#   et récaps de 8h et 13h30 (heure de Paris).
 #   Les horaires GitHub sont en heure UTC : on lance un peu large et le
 #   programme ignore les passages hors de 7h-20h heure de Paris
 #   (gère automatiquement l'heure d'été / d'hiver).
@@ -11,7 +11,7 @@ name: Radar alternance IT
 
 on:
   schedule:
-    - cron: "7 5-19 * * 1-6"    # chaque heure à hh:07 UTC, lundi-samedi
+    - cron: "7,37 5-19 * * 1-6" # toutes les 30 min (hh:07 et hh:37 UTC), lundi-samedi
     - cron: "23 1 2 * *"        # le 2 du mois à 1h23 UTC : module B
   workflow_dispatch:
     inputs:
@@ -22,7 +22,7 @@ on:
         options:
           - test-offres        # cherche les offres et envoie tout de suite un mail
           - test-froid         # module B sur une seule ville + mail d'appels à froid
-          - rafraichir-froid   # module B complet (toutes les villes, ~30-60 min)
+          - rafraichir-froid   # module B complet (6 villes, ~20-40 min)
           - recap              # envoie le récap du matin maintenant
           - heure              # passage horaire forcé (ignore les horaires)
       ville:
@@ -68,6 +68,9 @@ jobs:
           DESTINATAIRES: ${{ secrets.DESTINATAIRES }}
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
           GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
+          ADZUNA_APP_ID: ${{ secrets.ADZUNA_APP_ID }}
+          ADZUNA_APP_KEY: ${{ secrets.ADZUNA_APP_KEY }}
+          JOOBLE_API_KEY: ${{ secrets.JOOBLE_API_KEY }}
           EVENEMENT: ${{ github.event_name }}
           PLANNING: ${{ github.event.schedule }}
           COMMANDE: ${{ inputs.commande }}
