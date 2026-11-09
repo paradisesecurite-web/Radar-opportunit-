@@ -25,7 +25,7 @@ def rechercher(cfg: dict) -> list[dict]:
     for r in reglages["recherches"]:
         corps = {"keywords": r["mots"], "location": "France", "page": "1", "datecreatedfrom": depuis}
         rep = requests.post(url, json=corps, timeout=60, headers={"User-Agent": "radar-alternance-it/1.0"})
-        if rep.status_code == 404 and "fr.jooble" in url:   # adresse internationale en secours
+        if rep.status_code in (401, 403, 404) and "fr.jooble" in url:   # adresse internationale en secours
             url = "https://jooble.org/api/" + cle
             rep = requests.post(url, json=corps, timeout=60)
         if rep.status_code in (401, 403):
